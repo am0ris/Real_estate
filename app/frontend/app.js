@@ -1,6 +1,6 @@
 import { previewProperties } from './data.js';
 import { initChatbot } from './chat/chatbot.js';
-import { getWhatsAppUrl } from './chat/whatsapp.js';
+import { getWhatsAppUrl, initWhatsAppButton } from './chat/whatsapp.js';
 
 const app = document.querySelector('#app');
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -73,4 +73,5 @@ initChatbot({
   // Link a recommended property to its site page only when that page exists for this id.
   resolvePropertyHref: (id) => (previewProperties.some((p) => p.id === id) ? propertyHref(id) : null),
 });
-
+// Standalone WhatsApp button (bottom-left). Not part of the assistant widget.
+initWhatsAppButton();
