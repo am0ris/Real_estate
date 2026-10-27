@@ -2,6 +2,7 @@
 // Builds DOM with textContent only (never innerHTML with data), so backend text cannot inject markup.
 import { CONFIG } from './config.js';
 import { t, quickActions } from './i18n.js';
+import { getWhatsAppUrl, openWhatsApp } from './whatsapp.js';
 import { sendChat, checkHealth, buildPayload, parseTurn, resetConversation, ApiError } from './api.js';
 import { fromServerRequirements, SERVER_KEYS, describeFilters, refineChips, typeChips, detectLang } from './requirements.js';
 import { normalizeProperty, formatPrice, formatNumber } from './normalize.js';
@@ -20,6 +21,7 @@ const ICON = {
   mic: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
   micOff: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 4.6 2.5M5.5 11a6.5 6.5 0 0 0 10.8 4.9M18.5 11c0 .8-.1 1.5-.4 2.2M12 17.5V21M4 4l16 16"/></svg>',
   hangup: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.8 12.8 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.8 12.8 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
   hush: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5"/></svg>',
 };
 
@@ -77,6 +79,10 @@ export function initChatbot({ resolvePropertyHref = () => null, appRoot = null }
   const launcherText = h('span', { class: 'cb-launcher-text' });
   const launcher = h('button', { type: 'button', class: 'cb-launcher', 'aria-controls': 'cb-panel', 'aria-expanded': 'false' }, launcherIcon, launcherText);
 
+  // Floating WhatsApp button — sits above the chatbot launcher; hidden when the panel is open/minimized (CSS).
+  const waBtn = h('button', { type: 'button', class: 'wa-btn', 'aria-label': 'WhatsApp' }, h('span', { class: 'wa-btn-icon', html: ICON.phone }), h('span', { class: 'wa-btn-text' }, 'WhatsApp'));
+  waBtn.addEventListener('click', (e) => { e.stopPropagation(); openWhatsApp(); });
+
   const statusDot = h('span', { class: 'cb-dot', 'aria-hidden': 'true' });
   const statusText = h('span', { class: 'cb-status' });
   const titleEl = h('h2', { class: 'cb-title', id: 'cb-title' });
@@ -107,7 +113,7 @@ export function initChatbot({ resolvePropertyHref = () => null, appRoot = null }
     h('div', { class: 'cb-voice-text' }, voiceStatus, voiceCaption),
     h('div', { class: 'cb-voice-actions' }, hushBtn, muteBtn, endBtn));
   const panel = h('section', { class: 'cb-panel', id: 'cb-panel', role: 'dialog', 'aria-labelledby': 'cb-title', hidden: true }, header, log, filtersBar, compareBar, voiceBar, form);
-  const root = h('div', { class: 'cb', id: 'chatbot-root', 'data-mode': 'closed' }, launcher, panel);
+  const root = h('div', { class: 'cb', id: 'chatbot-root', 'data-mode': 'closed' }, launcher, waBtn, panel);
   document.body.append(root);
 
   // ---------- chrome (language-dependent static text) ----------

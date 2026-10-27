@@ -21,4 +21,8 @@ window.APP_CONFIG = {
   // Show the microphone button. Voice also needs GEMINI_API_KEY on the server and an
   // https page (or localhost); otherwise the button explains why voice is unavailable.
   VOICE_ENABLED: true,
+
+  // WhatsApp click-to-chat number (E.164 without '+'): visitors are linked to
+  // https://wa.me/<number>. The existing WhatsApp backend integration handles replies.
+  WHATSAPP_NUMBER: '15551981366',
 };
