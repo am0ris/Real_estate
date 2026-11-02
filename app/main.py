@@ -69,6 +69,49 @@ def _startup_database() -> None:
         create_all()
 
 
+def _ensure_vector_indexes() -> None:
+    """Ensure Qdrant payload indexes exist on API startup.
+
+    Idempotent: safe to call on every restart. Missing indexes are created
+    automatically so filtered retrieval works consistently across channels.
+    """
+    from .database.vector_db import create_client, ensure_payload_indexes
+
+    settings = get_settings()
+    client = create_client()
+    try:
+        if not client.collection_exists(settings.QDRANT_COLLECTION):
+            logger.warning(
+                "Qdrant collection does not exist yet | collection=%s",
+                settings.QDRANT_COLLECTION,
+            )
+            return
+        results = ensure_payload_indexes(client, settings.QDRANT_COLLECTION)
+        created = [f for f, r in results.items() if r == "created"]
+        skipped = [f for f, r in results.items() if r == "already_exists"]
+        failed = [f for f, r in results.items() if r == "failed"]
+        if created:
+            logger.info(
+                "Payload indexes ensured at startup | collection=%s created=%s",
+                settings.QDRANT_COLLECTION,
+                ", ".join(created),
+            )
+        if skipped:
+            logger.debug(
+                "Payload indexes already present at startup | collection=%s skipped=%s",
+                settings.QDRANT_COLLECTION,
+                ", ".join(skipped),
+            )
+        if failed:
+            logger.warning(
+                "Payload indexes failed at startup | collection=%s failed=%s",
+                settings.QDRANT_COLLECTION,
+                ", ".join(failed),
+            )
+    finally:
+        client.close()
+
+
 async def _maintenance_loop() -> None:
     """Retry undelivered staff alerts and tidy expired guard rows."""
     from .database.replay import purge_expired
@@ -101,6 +144,7 @@ async def lifespan(_: FastAPI):
         logger.warning("Configuration: %s", warning)
 
     await run_in_threadpool(_startup_database)
+    await run_in_threadpool(_ensure_vector_indexes)
     maintenance = asyncio.create_task(_maintenance_loop())
     logger.info("Startup complete | env=%s", current.APP_ENV)
     try:

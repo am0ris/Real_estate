@@ -42,7 +42,16 @@ PAYLOAD_INDEXES: dict[str, models.PayloadSchemaType] = {
     "location": models.PayloadSchemaType.KEYWORD,
     "city": models.PayloadSchemaType.KEYWORD,
     "district": models.PayloadSchemaType.KEYWORD,
+    "neighborhood": models.PayloadSchemaType.KEYWORD,
+    "compound": models.PayloadSchemaType.KEYWORD,
     "property_type": models.PayloadSchemaType.KEYWORD,
+    "transaction_type": models.PayloadSchemaType.KEYWORD,
+    "developer": models.PayloadSchemaType.KEYWORD,
+    "finishing": models.PayloadSchemaType.KEYWORD,
+    "delivery": models.PayloadSchemaType.KEYWORD,
+    "availability": models.PayloadSchemaType.KEYWORD,
+    "currency": models.PayloadSchemaType.KEYWORD,
+    "payment_plan": models.PayloadSchemaType.KEYWORD,
     "bedrooms": models.PayloadSchemaType.INTEGER,
     "bathrooms": models.PayloadSchemaType.INTEGER,
     "price": models.PayloadSchemaType.FLOAT,
@@ -131,16 +140,45 @@ def describe_collection() -> dict[str, Any]:
 def ensure_payload_indexes(
     client: QdrantClient,
     collection_name: str,
-) -> None:
-    """Ensure all metadata-filter fields have Qdrant payload indexes."""
+) -> dict[str, str]:
+    """Ensure all metadata-filter fields have Qdrant payload indexes.
 
+    Idempotent: indexes that already exist are skipped.
+    Returns a dict mapping field name to one of:
+        "created", "already_exists", "failed".
+    """
+
+    results: dict[str, str] = {}
     for field_name, schema_type in PAYLOAD_INDEXES.items():
-        client.create_payload_index(
-            collection_name=collection_name,
-            field_name=field_name,
-            field_schema=schema_type,
-            wait=True,
-        )
+        try:
+            client.create_payload_index(
+                collection_name=collection_name,
+                field_name=field_name,
+                field_schema=schema_type,
+                wait=True,
+            )
+            results[field_name] = "created"
+            logger.info("Payload index created | collection=%s field=%s", collection_name, field_name)
+        except Exception as error:
+            message = str(error)
+            # Qdrant returns a 409 Conflict / "already exists" when the index
+            # is already present; treat that as success.
+            if "already exist" in message.lower() or "already exists" in message.lower():
+                results[field_name] = "already_exists"
+                logger.debug(
+                    "Payload index already exists | collection=%s field=%s",
+                    collection_name,
+                    field_name,
+                )
+            else:
+                results[field_name] = "failed"
+                logger.exception(
+                    "Payload index creation failed | collection=%s field=%s error=%s",
+                    collection_name,
+                    field_name,
+                    error,
+                )
+    return results
 
 
 def ensure_collection(
@@ -160,7 +198,28 @@ def ensure_collection(
     else:
         check_collection_dimension(client, collection_name)
 
-    ensure_payload_indexes(client, collection_name)
+    index_results = ensure_payload_indexes(client, collection_name)
+    created = [f for f, r in index_results.items() if r == "created"]
+    skipped = [f for f, r in index_results.items() if r == "already_exists"]
+    failed = [f for f, r in index_results.items() if r == "failed"]
+    if created:
+        logger.info(
+            "Payload indexes created | collection=%s indexes=%s",
+            collection_name,
+            ", ".join(created),
+        )
+    if skipped:
+        logger.debug(
+            "Payload indexes already exist | collection=%s indexes=%s",
+            collection_name,
+            ", ".join(skipped),
+        )
+    if failed:
+        logger.warning(
+            "Payload indexes failed | collection=%s indexes=%s",
+            collection_name,
+            ", ".join(failed),
+        )
 
 
 # ---------------------------------------------------------------------------

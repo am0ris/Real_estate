@@ -93,7 +93,15 @@ def run_whatsapp_turn(sender: str, text: str, modality: str) -> str:
     except Exception:
         record_request("whatsapp_turn", "error", time.monotonic() - started)
         raise
-    record_request("whatsapp_turn", "degraded" if result.error else "ok", time.monotonic() - started)
+    if result.error:
+        logger.warning(
+            "WhatsApp turn degraded | sender=%s error=%s",
+            mask_phone(sender),
+            result.error,
+        )
+        record_request("whatsapp_turn", "degraded", time.monotonic() - started)
+    else:
+        record_request("whatsapp_turn", "ok", time.monotonic() - started)
     return result.response
 
 
