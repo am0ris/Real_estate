@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from app.agents.messages import say
+from app.agents.understanding import extract_requirements
 from app.agents.state import (
     FILTER_KEYS,
     ConversationState,
@@ -73,6 +74,13 @@ def run_property_workflow(state: PropertyState) -> dict:
     history = conversation_history(state)
     selected = state.get("selected_property")
 
+    # The catalogue only holds properties for sale. Say so instead of showing sale listings to
+    # someone who asked to rent. Only the current message counts, never a remembered one.
+    if state.get("intent") not in DETAIL_INTENTS and (
+        extract_requirements(state.get("query", "")).get("transaction_type") == "rent"
+    ):
+        return {"response": say(language, "rent_unavailable"), "active_agent": "property"}
+
     try:
         if state.get("intent") in DETAIL_INTENTS and selected:
             result = answer_about_properties(
@@ -102,6 +110,14 @@ def run_property_workflow(state: PropertyState) -> dict:
             "error": f"property_search_unavailable: {type(error).__name__}",
             "active_agent": "property",
         }
+
+    if not result["properties"]:
+        # Makes an over-narrow filter visible in the logs (filters hold no personal data).
+        logger.info(
+            "Property search returned no listings | channel=%s filters=%s",
+            state.get("channel"),
+            search_filters(requirements),
+        )
 
     return {
         "rewritten_query": rewritten,

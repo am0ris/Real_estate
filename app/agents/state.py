@@ -22,6 +22,7 @@ from app.agents.understanding import (
     extract_qualification,
     extract_requirements,
     resolve_property_reference,
+    wants_new_search,
 )
 
 
@@ -112,10 +113,15 @@ SCHEDULING_STAGES = {
 }
 
 # Requirement keys translated into hard metadata filters by the RAG workflow.
+# Every key here must be a field that the ingested payloads really carry (and index): a hard
+# filter on a field no point has returns zero listings. ``transaction_type`` is deliberately
+# absent because the catalogue has no such field (every listing is for sale); a customer asking
+# to rent is answered in ``run_property_workflow``. Add it back only together with the field in
+# the ingested payload, ``PAYLOAD_INDEXES`` and a backfill — ``tests/unit/test_search_filters.py``
+# fails if a key here has no data behind it.
 FILTER_KEYS = (
     "property_type",
     "district",
-    "transaction_type",
     "bedrooms",
     "min_bedrooms",
     "min_price",
@@ -177,7 +183,9 @@ def router(state: ConversationState) -> dict:
     query = state.get("query", "")
     language = detect_language(query, state.get("language") or "en")
 
-    previous_requirements = dict(state.get("requirements") or {})
+    # "Start over" wipes the carried search so an old filter can never trap the customer.
+    fresh_search = wants_new_search(query)
+    previous_requirements = {} if fresh_search else dict(state.get("requirements") or {})
     for key in state.get("clear_requirements") or []:
         previous_requirements.pop(key, None)
         if key == "bedrooms":
@@ -188,7 +196,7 @@ def router(state: ConversationState) -> dict:
     # A chip like "Without Sheikh Zayed" names the value being removed.
     for key in state.get("clear_requirements") or []:
         new_requirements.pop(key, None)
-    scheduling = state.get("scheduling") or {}
+    scheduling = {} if fresh_search else (state.get("scheduling") or {})
     base = classify_intent(query)
     if scheduling.get("stage") in SCHEDULING_STAGES and base != "property_search":
         # Mid-booking replies (times, phone numbers, "yes") must not be read
@@ -213,14 +221,17 @@ def router(state: ConversationState) -> dict:
 
     customer = merge_contact(state.get("customer") or {}, contact, state)
 
-    candidates = state.get("candidates") or []
+    candidates = [] if fresh_search else (state.get("candidates") or [])
     # Once a property is chosen for a viewing, "the first one" refers to time slots.
     picking_slot = scheduling.get("stage") in SCHEDULING_STAGES - {"need_property"}
     referenced = None if picking_slot else resolve_property_reference(query, candidates)
-    selected = referenced or state.get("selected_property")
+    selected = referenced or (None if fresh_search else state.get("selected_property"))
 
     if state.get("clear_requirements"):
         intent = "property_search"
+    elif fresh_search and not new_requirements:
+        # "Start over" with no new details: collect the requirements again.
+        intent = "lead_qualification"
     elif base == "human_handoff":
         intent = "human_handoff"
     elif base in {"cancel_visit", "booking_status"} and not new_requirements:
@@ -246,7 +257,7 @@ def router(state: ConversationState) -> dict:
     else:
         intent = base
 
-    return {
+    update = {
         "intent": intent,
         "language": language,
         "requirements": requirements,
@@ -255,6 +266,11 @@ def router(state: ConversationState) -> dict:
         "customer": customer,
         "selected_property": selected,
     }
+    if fresh_search:
+        # Same fields ConversationService.reset_search() clears; the customer's profile stays.
+        update["candidates"] = []
+        update["scheduling"] = {}
+    return update
 
 
 INTENT_TO_AGENT = {

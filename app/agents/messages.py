@@ -19,6 +19,10 @@ PHRASES: dict[str, dict[str, str]] = {
         "en": "Sorry, I can't reach the property listings right now. Please try again in a moment — your search details are saved.",
         "ar": "معلش، مش قادر أوصل للعقارات المتاحة دلوقتي. حاول تاني بعد شوية — تفاصيل بحثك محفوظة.",
     },
+    "rent_unavailable": {
+        "en": "Right now my listings are for sale only — I don't have rentals yet. Want me to look for properties to buy instead? Tell me the area, type or budget.",
+        "ar": "حالياً العقارات المتاحة عندي للبيع بس، ومعنديش إيجار لسه. تحب أدوّرلك على عقارات للشراء؟ قولّي المنطقة أو النوع أو الميزانية.",
+    },
     "ask_type": {"en": "What type of property are you looking for (apartment, villa, chalet...)?", "ar": "بتدوّر على نوع عقار إيه (شقة، فيلا، شاليه...)؟"},
     "ask_location": {"en": "Which area do you prefer?", "ar": "تفضّل أنهي منطقة؟"},
     "ask_budget": {"en": "What budget range do you have in mind?", "ar": "الميزانية اللي في بالك حوالي كام؟"},

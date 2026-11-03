@@ -432,6 +432,27 @@ def is_abort(text: str) -> bool:
     return bool(_ABORT.search(normalize_text(text)))
 
 
+# "Start over" wording. A WhatsApp customer keeps one conversation for days or weeks, so filters
+# from an old search must be removable in plain words (the website has a reset button and
+# removable filter chips for the same purpose). Matching runs on ``normalize_text`` output, so
+# ``ابدأ من جديد`` and ``ابدا من جديد`` are the same; a bare "من جديد" ("again") is not enough.
+_NEW_SEARCH = re.compile(
+    r"\b(?:ابدا|نبدا|ابدء)\s+(?:من\s+(?:جديد|الاول|الصفر)|بحث\s+جديد|تاني)"
+    r"|\bبحث\s+جديد"
+    r"|\bابحث\s+من\s+جديد"
+    r"|\bامسح\s+(?:البحث|الفلاتر|كل\s*شي|كل\s*حاجه)"
+    r"|\bstart\s*(?:over|again|fresh)\b"
+    r"|\bnew\s+search\b"
+    r"|\b(?:reset|clear)\s+(?:my\s+|the\s+)?(?:search|filters|requirements)\b"
+    r"|^\s*(?:reset|restart|clear)\s*$"
+)
+
+
+def wants_new_search(text: str) -> bool:
+    """True when the customer asks to drop the carried search and begin again."""
+    return bool(_NEW_SEARCH.search(normalize_text(text)))
+
+
 # ---------------------------------------------------------------------------
 # Intent classification
 # ---------------------------------------------------------------------------
