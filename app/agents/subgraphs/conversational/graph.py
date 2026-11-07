@@ -51,7 +51,9 @@ def generate_response(
     language = state.get("language", "en")
     summary = describe_requirements(state.get("requirements") or {}, state.get("qualification") or {}, language)
 
-    if state.get("intent") == "greeting" or not query:
+    if state.get("intent") == "search_reset":
+        response = say(language, "search_reset")
+    elif state.get("intent") == "greeting" or not query:
         response = say(language, "greeting")
     else:
         try:

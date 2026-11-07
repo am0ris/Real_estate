@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.agents.listing_text import dedupe_listings, format_property_list
 from app.agents.messages import say
 from app.agents.understanding import extract_requirements
 from app.agents.state import (
@@ -81,13 +82,37 @@ def run_property_workflow(state: PropertyState) -> dict:
     ):
         return {"response": say(language, "rent_unavailable"), "active_agent": "property"}
 
+    # Channels without property cards (WhatsApp) get the listings as text after a short answer.
+    text_only = state.get("channel") == "whatsapp"
+    extra = {"channel": "whatsapp"} if text_only else {}
+
     try:
+        compare_ids = {str(property_id) for property_id in (state.get("compare_ids") or [])}
+        to_compare = [c for c in (state.get("candidates") or []) if str(c.get("property_id")) in compare_ids]
+        if len(to_compare) >= 2:
+            # Compare exactly the listings the customer was shown, never a fresh search.
+            result = answer_about_properties(
+                state.get("query", ""),
+                to_compare,
+                requirements,
+                conversation_history=history,
+                **extra,
+            )
+            return {
+                "response": result["answer"],
+                "turn_properties": result["properties"],
+                "cited_property_ids": result["cited_property_ids"],
+                "grounding_property_ids": result["grounding_property_ids"],
+                "active_agent": "property",
+            }
+
         if state.get("intent") in DETAIL_INTENTS and selected:
             result = answer_about_properties(
                 state.get("query", ""),
                 [selected],
                 requirements,
                 conversation_history=history,
+                **extra,
             )
             return {
                 "response": result["answer"],
@@ -102,6 +127,7 @@ def run_property_workflow(state: PropertyState) -> dict:
             rewritten,
             search_filters(requirements),
             conversation_history=history,
+            **extra,
         )
     except Exception as error:  # provider, vector DB or timeout failures
         logger.exception("Property workflow failed")
@@ -111,22 +137,33 @@ def run_property_workflow(state: PropertyState) -> dict:
             "active_agent": "property",
         }
 
-    if not result["properties"]:
+    properties = dedupe_listings(result["properties"]) if text_only else result["properties"]
+    answer = result["answer"]
+    update = {
+        "rewritten_query": rewritten,
+        "turn_properties": properties,
+        "cited_property_ids": result["cited_property_ids"],
+        "grounding_property_ids": result["grounding_property_ids"],
+        "active_agent": "property",
+    }
+    if properties:
+        if text_only:
+            conditions = describe_requirements(requirements, {}, language)
+            listing = format_property_list(properties, language, conditions=conditions)
+            answer = f"{answer}\n\n{listing}".strip()
+        # Only a new, non-empty result list replaces the listings the customer was shown.
+        update["candidates"] = properties
+        update["selected_property"] = None
+    else:
+        # An empty search must not wipe the list we showed ("compare them", "book the first").
         # Makes an over-narrow filter visible in the logs (filters hold no personal data).
         logger.info(
             "Property search returned no listings | channel=%s filters=%s",
             state.get("channel"),
             search_filters(requirements),
         )
-
-    return {
-        "rewritten_query": rewritten,
-        "response": result["answer"],
-        "candidates": result["properties"],
-        "turn_properties": result["properties"],
-        "cited_property_ids": result["cited_property_ids"],
-        "grounding_property_ids": result["grounding_property_ids"],
-        # A new result list invalidates the previous selection.
-        "selected_property": None,
-        "active_agent": "property",
-    }
+        summary = describe_requirements(requirements, {}, language)
+        if summary:
+            answer = f"{answer}\n\n{say(language, 'search_context', summary=summary)}"
+    update["response"] = answer
+    return update

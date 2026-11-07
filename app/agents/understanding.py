@@ -14,6 +14,8 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
+from app.helpers.locations import DISTRICTS, match_district  # noqa: F401  (DISTRICTS kept for importers)
+
 
 # ---------------------------------------------------------------------------
 # Text normalization
@@ -49,25 +51,15 @@ PROPERTY_TYPES: list[tuple[str, str]] = [
     ("Penthouse", r"penthouse|بنتهاوس"),
     ("Duplex", r"duplex|دوبلكس"),
     ("Studio", r"\bstudio|استوديو|ستوديو"),
-    ("Villa", r"villa|فيلا|فيلل|فلل|فيلات"),
-    ("Apartment", r"apartment|\bflat\b|شقه|شقق"),
+    ("Villa", r"villa|\bfill?a\b|فيلا|فيلل|فلل|فيلات"),
+    ("Apartment", r"apartment|\bflat\b|\bsha[2q]+a\b|\bsho2a\b|شقه|شقق"),
     ("Chalet", r"chalet|شاليه"),
     ("Office", r"\boffice|مكتب|اداري"),
     ("Shop", r"\bshop\b|\bretail|محل|تجاري"),
 ]
 
-DISTRICTS: list[tuple[str, str]] = [
-    ("Sheikh Zayed", r"sheikh\s*zayed|\bzayed|الشيخ\s*زايد|زايد"),
-    ("New Cairo", r"new\s*cairo|tagamo|tagammu|fifth\s*settlement|التجمع|القاهره\s*الجديده"),
-    ("6th of October", r"6th\s*of\s*october|\boctober\b|اكتوبر|6\s*اكتوبر"),
-    ("North Coast", r"north\s*coast|sahel|الساحل"),
-    ("New Capital", r"new\s*capital|administrative\s*capital|العاصمه\s*الاداريه|العاصمه\s*الجديده"),
-    ("Maadi", r"maadi|المعادي"),
-    ("Nasr City", r"nasr\s*city|مدينه\s*نصر"),
-    ("Mostakbal City", r"mostakbal|المستقبل"),
-    ("Ain Sokhna", r"sokhna|السخنه"),
-    ("Heliopolis", r"heliopolis|مصر\s*الجديده"),
-]
+# Districts come from app.helpers.locations: the same table ingestion uses, so a name the
+# assistant produces is a name the catalogue stores.
 
 _NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
@@ -80,9 +72,12 @@ _NUMBER_WORD_RE = "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True))
 
 _BEDROOMS_RE = re.compile(
     rf"(?:(\d{{1,2}})|({_NUMBER_WORD_RE}))\s*(\+)?\s*(?:-\s*)?"
-    r"(?:bed(?:room)?s?|br\b|غرف|غرفه|اوض|اوضه)"
+    r"(?:bed(?:room)?s?|br\b|غرف|غرفه|اوض|اوضه|\bodas?\b|\bodah\b|\bghor[fa]+)"
     r"(\s*(?:او\s*اكتر|او\s*اكثر|or\s*more|\+))?"
 )
+_BEDROOMS_AT_LEAST_BEFORE = re.compile(r"(?:at least|minimum|min\.?|علي الاقل)\s*$")
+_BEDROOMS_AT_LEAST_AFTER = re.compile(r"\s*(?:علي الاقل|فاكتر|واكتر|فاكثر|فما فوق|at least|and above|and more)")
+_BEDROOMS_MORE_THAN_BEFORE = re.compile(r"(?:more than|over|اكتر من|اكثر من)\s*$")
 _AMOUNT_RE = re.compile(
     rf"(\d+(?:\.\d+)?|{_NUMBER_WORD_RE})\s*"
     r"(million|mil\b|mn\b|m\b|مليون|ملايين|k\b|thousand|الف|ألف)"
@@ -122,10 +117,29 @@ def _unique_match(text: str, table: list[tuple[str, str]]) -> str | None:
 _DOWN_PAYMENT_HINT = re.compile(r"down\s*payment|deposit|downpayment|مقدم|دفعه\s*اولي|اول\s*دفعه")
 _MONTHLY_HINT = re.compile(r"monthly|per\s*month|a\s*month|installment|قسط|شهري|في\s*الشهر|الشهر")
 _MIN_HINT = re.compile(r"(above|over|more than|at least|starting|اكتر من|اكثر من|فوق|علي الاقل)\s*$")
+# "مش اكتر من 6 مليون" / "not more than 6M" is a CEILING: the negation flips the direction.
+_NEGATED_MIN = re.compile(r"(?:مش|ما|متزودش|not|no|never|don'?t|without)\s*(?:more than|over|above|اكتر من|اكثر من|فوق)\s*$")
+# "6 مليون على الاقل" / "6M or more": the hint comes after the amount.
+_MIN_AFTER = re.compile(r"\s*(?:egp|جنيه|مليون|million)?\s*(?:علي الاقل|او اكتر|او اكثر|فاكتر|واكتر|فاكثر|فما فوق|or more|and above|plus|\+)")
 _RANGE_RE = re.compile(
     r"(?:between|from|من|بين)\s*(\d+(?:\.\d+)?)\s*(?:(million|m\b|مليون|k\b|الف)\s*)?"
     r"(?:and|to|-|و|ل|الي|لحد)\s*(\d+(?:\.\d+)?)\s*(million|m\b|مليون|ملايين|k\b|الف)"
 )
+
+
+# An 8+ digit run is a listing id or a reference number unless money wording is next to it.
+_CURRENCY_AFTER = re.compile(r"\s*(?:egp|le\b|l\.e|pounds?|جنيه|مليون|million|الف)")
+_BUDGET_BEFORE = re.compile(r"(?:budget|price|up to|under|max(?:imum)?|ميزاني\w*|سعر\w*|تحت|لحد|حوالي|بحدود|حد)\s*[:=]?\s*$")
+
+
+def blank_known_ids(text: str, ids) -> str:
+    """Blank out property ids the customer may type, so they are never read as prices."""
+    out = str(text or "")
+    for property_id in ids or ():
+        property_id = str(property_id or "").strip()
+        if len(property_id) >= 3:
+            out = re.sub(rf"(?<![\w-]){re.escape(property_id)}(?![\w-])", lambda m: " " * len(m.group(0)), out)
+    return out
 
 
 def _money_mentions(text: str) -> list[tuple[float, int, int]]:
@@ -140,6 +154,10 @@ def _money_mentions(text: str) -> list[tuple[float, int, int]]:
             continue
         # Skip phone numbers (leading 0 / +) — they are contact data, not money.
         if match.group(1).startswith("0") or len(match.group(1)) > 9:
+            continue
+        if len(match.group(1)) >= 8 and not (
+            _CURRENCY_AFTER.match(text, match.end()) or _BUDGET_BEFORE.search(text[max(0, match.start() - 25):match.start()])
+        ):
             continue
         found.append((float(match.group(1)), match.start(), match.end()))
     return sorted(found, key=lambda item: item[1])
@@ -168,7 +186,9 @@ def _classified_money(text: str) -> list[tuple[float, str]]:
             labelled.append((value, "down_payment"))
         elif _MONTHLY_HINT.search(before) or _MONTHLY_HINT.search(after):
             labelled.append((value, "monthly"))
-        elif _MIN_HINT.search(before):
+        elif _NEGATED_MIN.search(before):
+            labelled.append((value, "price"))
+        elif _MIN_HINT.search(before) or _MIN_AFTER.match(after):
             labelled.append((value, "min"))
         else:
             labelled.append((value, "price"))
@@ -188,19 +208,26 @@ def extract_requirements(text: str) -> dict[str, Any]:
     property_type = _unique_match(t, PROPERTY_TYPES)
     if property_type:
         out["property_type"] = property_type
-    district = _unique_match(t, DISTRICTS)
+    district = match_district(t)
     if district:
         out["district"] = district
 
     if re.search(r"غرفتين|اوضتين", t):
         out["bedrooms"] = 2
     else:
-        match = _BEDROOMS_RE.search(_without_phone_numbers(t))
+        clean = _without_phone_numbers(t)
+        match = _BEDROOMS_RE.search(clean)
         if match:
             number = _to_number(match.group(1) or match.group(2))
             if number and 0 < number < 20:
-                if match.group(3) or match.group(4):
+                before = clean[max(0, match.start() - 14):match.start()]
+                after = clean[match.end():match.end() + 16]
+                if _NEGATED_MIN.search(before):
+                    pass  # "no more than 3 bedrooms" is a ceiling the filters do not model: say nothing
+                elif match.group(3) or match.group(4) or _BEDROOMS_AT_LEAST_AFTER.match(after) or _BEDROOMS_AT_LEAST_BEFORE.search(before):
                     out["min_bedrooms"] = int(number)
+                elif _BEDROOMS_MORE_THAN_BEFORE.search(before):
+                    out["min_bedrooms"] = int(number) + 1
                 else:
                     out["bedrooms"] = int(number)
 
@@ -256,6 +283,22 @@ def _spoken_digits_to_numerals(text: str) -> str:
     return _DIGIT_WORD_RUN.sub(convert, text)
 
 
+_NAME_STOP = {
+    "عايز", "عاوز", "محتاج", "بدور", "بدي", "ابحث", "اشتري", "هدور", "and", "looking", "interested", "want", "need", "searching",
+}
+
+
+def _clean_name(candidate: str) -> str:
+    """Keep the name, drop the clause glued to it ("احمد وعايز" -> "احمد", "Sara and I" -> "Sara")."""
+    kept: list[str] = []
+    for token in candidate.split():
+        bare = token[1:] if token.startswith("و") and len(token) > 3 else token
+        if token.lower() in _NAME_STOP or bare in _NAME_STOP:
+            break
+        kept.append(token)
+    return " ".join(kept)
+
+
 def extract_qualification(text: str) -> dict[str, Any]:
     """Extract lead-qualification signals literally stated in one message."""
     t = normalize_text(text)
@@ -304,8 +347,8 @@ def extract_qualification(text: str) -> dict[str, Any]:
         out["email"] = email.group(0).lower()
     name = re.search(r"(?:my name is|i am|i'm|اسمي|انا اسمي)\s+([A-Za-z؀-ۿ]{2,20}(?:\s+[A-Za-z؀-ۿ]{2,20})?)", text or "", re.IGNORECASE)
     if name and not re.search(r"\d", name.group(1)):
-        candidate = name.group(1).strip()
-        if candidate.lower() not in {"looking", "interested", "searching", "here", "ready"}:
+        candidate = _clean_name(name.group(1))
+        if candidate and candidate.lower() not in {"looking", "interested", "searching", "here", "ready"}:
             out["name"] = candidate
     return out
 
@@ -315,12 +358,14 @@ def extract_qualification(text: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 # Arabic ordinals accept "ال" and the merged "لل" ("للتاني" = "for the second").
+# "التجمع الخامس" / "5th settlement" name a place, not "the fifth one".
+_NOT_A_SETTLEMENT = r"(?<!تجمع )(?<!تجمع)"
 _ORDINALS = {
-    1: r"\b(first|1st)\b|(ال|لل)اول|اول واحد|رقم\s*1\b|#1\b",
-    2: r"\b(second|2nd)\b|(ال|لل)(تاني|ثاني)|رقم\s*2\b|#2\b",
-    3: r"\b(third|3rd)\b|(ال|لل)(تالت|ثالث)|رقم\s*3\b|#3\b",
-    4: r"\b(fourth|4th)\b|(ال|لل)رابع|رقم\s*4\b|#4\b",
-    5: r"\b(fifth|5th)\b|(ال|لل)خامس|رقم\s*5\b|#5\b",
+    1: rf"\b(first|1st)\b(?!\s*settlement)|{_NOT_A_SETTLEMENT}(ال|لل)اول|اول واحد|رقم\s*1\b|#1\b",
+    2: rf"\b(second|2nd)\b(?!\s*settlement)|{_NOT_A_SETTLEMENT}(ال|لل)(تاني|ثاني)|رقم\s*2\b|#2\b",
+    3: rf"\b(third|3rd)\b(?!\s*settlement)|{_NOT_A_SETTLEMENT}(ال|لل)(تالت|ثالث)|رقم\s*3\b|#3\b",
+    4: rf"\b(fourth|4th)\b|(ال|لل)رابع|رقم\s*4\b|#4\b",
+    5: rf"\b(fifth|5th)\b(?!\s*settlement)|{_NOT_A_SETTLEMENT}(ال|لل)خامس|رقم\s*5\b|#5\b",
 }
 
 
@@ -346,13 +391,14 @@ def resolve_property_reference(text: str, candidates: list[dict[str, Any]]) -> d
 # ---------------------------------------------------------------------------
 
 _WEEKDAYS = [
-    (0, r"monday|الاتنين|الاثنين"),
-    (1, r"tuesday|التلات|الثلاثاء"),
-    (2, r"wednesday|الاربع|الاربعاء"),
+    # "الاتنين غرف" / "الاربع غرف" count rooms, and "الحد الاقصى" is "the maximum": not weekdays.
+    (0, r"monday|الاتنين(?!\s*(?:غرف|اوض))|الاثنين"),
+    (1, r"tuesday|التلات(?!\s*(?:غرف|اوض))|الثلاثاء"),
+    (2, r"wednesday|الاربع(?!\s*(?:غرف|اوض))|الاربعاء"),
     (3, r"thursday|الخميس"),
     (4, r"friday|الجمعه"),
     (5, r"saturday|السبت"),
-    (6, r"sunday|الحد|الاحد"),
+    (6, r"sunday|الحد(?!\s*(?:الاقصي|الادني|الاعلي|الاقل))|الاحد"),
 ]
 
 
@@ -392,13 +438,19 @@ def extract_date(text: str, today: date) -> date | None:
 def extract_time(text: str) -> tuple[int, int] | None:
     """Return (hour, minute) in 24h form when the customer names a time."""
     t = normalize_text(text)
-    match = re.search(r"(?<!\d)(\d{1,2})(?::(\d{2}))?\s*(am|pm|ص|م|صباحا|مساء|الصبح|بالليل|العصر|الضهر)?(?!\d)", t)
+    # The one-letter suffixes (ص / م) must end the word: "5 مليون" is five million, not 5 pm.
+    match = re.search(
+        r"(?<!\d)(\d{1,2})(?::(\d{2}))?\s*(?:(am|pm|ص|م|صباحا|مساء|الصبح|بالليل|العصر|الضهر|الظهر|ظهرا|ضهرا)(?![\u0621-\u064a]))?(?!\d)",
+        t,
+    )
     if not match or (match.group(2) is None and match.group(3) is None and not re.search(r"(at|الساعه)\s*\d", t)):
         return None
     hour, minute = int(match.group(1)), int(match.group(2) or 0)
     suffix = match.group(3) or ""
     if suffix in {"pm", "م", "مساء", "بالليل", "العصر"} and hour < 12:
         hour += 12
+    elif suffix in {"الضهر", "الظهر", "ظهرا", "ضهرا"} and 1 <= hour <= 6:
+        hour += 12  # "1 الضهر" is 1 pm, not 1 am
     elif suffix in {"am", "ص", "صباحا", "الصبح"} and hour == 12:
         hour = 0
     elif not suffix and 1 <= hour <= 7:
@@ -437,9 +489,9 @@ def is_abort(text: str) -> bool:
 # removable filter chips for the same purpose). Matching runs on ``normalize_text`` output, so
 # ``ابدأ من جديد`` and ``ابدا من جديد`` are the same; a bare "من جديد" ("again") is not enough.
 _NEW_SEARCH = re.compile(
-    r"\b(?:ابدا|نبدا|ابدء)\s+(?:من\s+(?:جديد|الاول|الصفر)|بحث\s+جديد|تاني)"
-    r"|\bبحث\s+جديد"
-    r"|\bابحث\s+من\s+جديد"
+    r"\b(?:ابدا|نبدا|ابدء|ابتدي)\s+(?:من\s+(?:ج?دي+د|الاول|الصفر)|بحث\s+(?:ج?دي+د|تاني)|تاني)"
+    r"|\bبحث\s+(?:ج?دي+د|تاني)"
+    r"|\bابحث\s+(?:من\s+ج?دي+د|تاني)"
     r"|\bامسح\s+(?:البحث|الفلاتر|كل\s*شي|كل\s*حاجه)"
     r"|\bstart\s*(?:over|again|fresh)\b"
     r"|\bnew\s+search\b"
@@ -451,6 +503,125 @@ _NEW_SEARCH = re.compile(
 def wants_new_search(text: str) -> bool:
     """True when the customer asks to drop the carried search and begin again."""
     return bool(_NEW_SEARCH.search(normalize_text(text)))
+
+
+# "Any price" / "any area" / "any number of bedrooms": the customer is lifting a condition that an
+# earlier message set. Without this the old budget or area silently stays on every later search.
+_ANY_PRICE = re.compile(
+    r"\bany\s+(?:price|budget)\b|regardless\s+of\s+(?:the\s+)?(?:price|budget)|\bno\s+(?:budget|price)\s+(?:limit|cap)\b"
+    r"|without\s+(?:a\s+)?budget|(?:ب|با)?\s*اي\s*(?:سعر|ميزاني\w*)|(?:من\s+غير|بدون|مفيش)\s+ميزاني\w*"
+    r"|ميزاني\w*\s+مفتوح\w*|السعر\s+(?:مش\s+فارق\w*|ميفرقش|مش\s+مهم)|مش\s+فارق\w*\s+السعر"
+)
+_ANY_AREA = re.compile(
+    r"\bany\s+(?:area|location|district|place)\b|\banywhere\b|اي\s*(?:منطق\w*|مكان|حي)"
+    r"|(?:المنطق\w*|المكان)\s+(?:مش\s+فارق\w*|ميفرقش|مش\s+مهم)"
+)
+_ANY_BEDROOMS = re.compile(
+    r"\bany\s+number\s+of\s+(?:bed)?rooms?\b|اي\s*عدد\s*(?:من\s+)?(?:ال)?غرف"
+    r"|عدد\s+(?:ال)?غرف\s+(?:مش\s+فارق\w*|ميفرقش|مش\s+مهم)"
+)
+
+
+def requirements_to_clear(text: str) -> list[str]:
+    """Requirement keys the customer's wording lifts ("بأي سعر" lifts the budget)."""
+    t = normalize_text(text)
+    cleared: list[str] = []
+    if _ANY_PRICE.search(t):
+        cleared += ["max_price", "min_price"]
+    if _ANY_AREA.search(t):
+        cleared += ["district"]
+    if _ANY_BEDROOMS.search(t):
+        cleared += ["bedrooms", "min_bedrooms", "max_bedrooms"]
+    return cleared
+
+
+# ---------------------------------------------------------------------------
+# Pointing at the listings the customer was just shown
+# ---------------------------------------------------------------------------
+
+_COMPARE = re.compile(
+    r"\bcompar(?:e|ing|ison)\b|\bversus\b|\bvs\.?(?=\s)|difference\s+between|which\s+(?:one\s+)?is\s+better"
+    r"|قارن\w*|مقارن\w*|الفرق\s+بين|ايهم\s+احسن|اي\s*واحد\s*احسن"
+)
+
+
+def wants_comparison(text: str) -> bool:
+    return bool(_COMPARE.search(normalize_text(text)))
+
+
+def _has_number(text: str, number: int) -> bool:
+    return bool(re.search(rf"(?<![\d.]){number}(?!\d)", text))
+
+
+def match_pasted_listings(text: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Candidates whose listing line the customer pasted back (price AND area, or price and district).
+
+    Customers copy a line of our own answer into the chat; its prices and place names describe a
+    listing we already showed, they are not new search conditions.
+    """
+    t = normalize_text(text)
+    found: list[dict[str, Any]] = []
+    seen: set[tuple] = set()  # the same unit listed twice is one line to the customer
+    for candidate in candidates or []:
+        metadata = candidate.get("metadata") or {}
+        try:
+            price = int(float(metadata.get("price")))
+        except (TypeError, ValueError):
+            continue
+        if price < 1000 or not _has_number(t, price):
+            continue
+        try:
+            area_present = _has_number(t, int(float(metadata.get("area"))))
+        except (TypeError, ValueError):
+            district = str(metadata.get("district") or "").lower()
+            area_present = bool(district) and district in t
+        signature = (price, metadata.get("area"), metadata.get("district"), metadata.get("bedrooms"))
+        if area_present and signature not in seen:
+            seen.add(signature)
+            found.append(candidate)
+    return found
+
+
+def resolve_property_references(text: str, candidates: list[dict[str, Any]], limit: int = 4) -> list[dict[str, Any]]:
+    """Every candidate the message points at: by id, by a pasted listing line, or by position."""
+    if not candidates:
+        return []
+    t = normalize_text(text)
+    picked: list[dict[str, Any]] = []
+
+    def add(candidate: dict[str, Any]) -> None:
+        if all(candidate is not other for other in picked):
+            picked.append(candidate)
+
+    for candidate in candidates:
+        property_id = str(candidate.get("property_id") or "")
+        if len(property_id) >= 3 and re.search(rf"(?<![\w-]){re.escape(property_id.lower())}(?![\w-])", t):
+            add(candidate)
+    for candidate in match_pasted_listings(text, candidates):
+        add(candidate)
+    for position, pattern in _ORDINALS.items():
+        if position <= len(candidates) and re.search(pattern, t):
+            add(candidates[position - 1])
+    if re.search(r"\b(last one|the last)\b|الاخير", t):
+        add(candidates[-1])
+    return picked[:limit]
+
+
+def compare_targets(text: str, candidates: list[dict[str, Any]], limit: int = 4) -> list[dict[str, Any]]:
+    """The listings to compare, or [] when the message is not a comparison.
+
+    Two or more listings named in the message are compared; "compare them" with none named
+    compares everything we just showed.
+    """
+    if not candidates:
+        return []
+    named = resolve_property_references(text, candidates, limit)
+    if len(named) >= 2:
+        return named
+    if wants_comparison(text) and len(candidates) >= 2:
+        others = [c for c in candidates if all(c is not n for n in named)]
+        return (named + others)[:limit]
+    return []
 
 
 # ---------------------------------------------------------------------------

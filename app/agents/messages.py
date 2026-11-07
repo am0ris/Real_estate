@@ -19,6 +19,14 @@ PHRASES: dict[str, dict[str, str]] = {
         "en": "Sorry, I can't reach the property listings right now. Please try again in a moment — your search details are saved.",
         "ar": "معلش، مش قادر أوصل للعقارات المتاحة دلوقتي. حاول تاني بعد شوية — تفاصيل بحثك محفوظة.",
     },
+    "search_reset": {
+        "en": "Done, fresh start. Tell me the property type, area, budget or number of bedrooms you have in mind.",
+        "ar": "تمام، بدأنا بحث جديد. قولّي نوع العقار والمنطقة والميزانية أو عدد الغرف اللي في بالك.",
+    },
+    "search_context": {
+        "en": "I searched for: {summary}. Say \"any price\" or \"start over\" if you want me to drop a condition.",
+        "ar": "كان بحثي عن: {summary}. لو عايز أشيل شرط قولّي (مثلاً \"بأي سعر\") أو قول \"ابدأ من جديد\".",
+    },
     "rent_unavailable": {
         "en": "Right now my listings are for sale only — I don't have rentals yet. Want me to look for properties to buy instead? Tell me the area, type or budget.",
         "ar": "حالياً العقارات المتاحة عندي للبيع بس، ومعنديش إيجار لسه. تحب أدوّرلك على عقارات للشراء؟ قولّي المنطقة أو النوع أو الميزانية.",
@@ -33,7 +41,7 @@ PHRASES: dict[str, dict[str, str]] = {
         "en": "Thanks, I have your main requirements: {summary}. Shall I search matching properties or book a call with an advisor?",
         "ar": "شكراً، معايا طلباتك الأساسية: {summary}. أدوّرلك على عقارات مناسبة ولا أحجزلك مكالمة مع مستشار؟",
     },
-    "noted": {"en": "Noted: {summary}.", "ar": "تمام، سجلت: {summary}."},
+    "noted": {"en": "Noted: {summary}.", "ar": "تمام، معايا: {summary}."},
     "schedule_need_property": {
         "en": "Which property would you like to visit? You can say its number from the list (for example \"the first one\") or its ID.",
         "ar": "حابب تعاين أنهي عقار؟ قولّي رقمه في القايمة (مثلاً \"الأول\") أو الكود بتاعه.",

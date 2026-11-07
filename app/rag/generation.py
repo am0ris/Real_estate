@@ -308,6 +308,15 @@ For no results:
 
 IMPORTANT:
 
+Never say or imply that a viewing, visit or reservation has been booked or confirmed. Booking is a
+separate step handled by the application; if the customer wants a viewing, tell them to say so and
+the assistant will arrange it.
+
+When the customer asks to compare properties, compare only the properties in RETRIEVED PROPERTIES,
+in a short plain-text comparison (one line per property or per attribute), using only facts from the
+evidence. If a property they name is not in RETRIEVED PROPERTIES, say you do not have its details in
+front of you instead of saying it does not exist.
+
 Do not claim that a property is "available" unless availability is explicitly
 supported by the evidence or the application explicitly provides that
 availability status.
@@ -492,11 +501,54 @@ def _validate_conversation_history(
     return valid_messages
 
 
+# ---------------------------------------------------------------------------
+# Channels without property cards
+# ---------------------------------------------------------------------------
+# The website shows every retrieved property as a card under the answer, so the standard prompt
+# tells the model to summarise and leave the details to the cards. WhatsApp is plain text: there
+# are no cards, so the application appends a numbered list built from the stored listing data and
+# the model must write only the short conversational part.
+_FORMAT_START = SYSTEM_PROMPT_TEMPLATE.index("RESPONSE FORMAT:")
+_FORMAT_END = SYSTEM_PROMPT_TEMPLATE.index("IMPORTANT:", _FORMAT_START)
+_TEXT_ONLY_FORMAT = """RESPONSE FORMAT:
+
+- Do NOT use Markdown tables.
+- This channel is plain text and shows NO property cards. The application adds a numbered list of
+  the retrieved properties (type, place, area, bedrooms, price, ID) right after your answer.
+- Therefore do NOT list the properties yourself, do NOT repeat their prices or areas, and NEVER
+  mention "cards", "below", "تحت" or "البطاقات".
+- Write 1 to 3 short sentences: how many properties matched, what they have in common, and one
+  useful next step.
+- When the customer asks to compare, give a short plain-text comparison of the properties in
+  RETRIEVED PROPERTIES (one line per property), using only facts from the evidence.
+- Keep the response concise and natural.
+
+EXAMPLES OF GOOD RESPONSE STYLE:
+
+Arabic:
+
+"لقيتلك 5 شقق مطابقة لطلبك. دي القايمة، ولو عايز تفاصيل عقار قولّي رقمه أو كوده."
+
+English:
+
+"I found 5 apartments matching your search. Here is the list; tell me a number or ID for details."
+
+For no results:
+
+"ملقتش عقارات مطابقة للبحث الحالي. ممكن نجرب منطقة تانية أو نوسع معايير البحث."
+
+"""
+SYSTEM_PROMPT_TEXT_ONLY = (
+    SYSTEM_PROMPT_TEMPLATE[:_FORMAT_START] + _TEXT_ONLY_FORMAT + SYSTEM_PROMPT_TEMPLATE[_FORMAT_END:]
+)
+
+
 def build_messages(
     customer_query: str,
     candidates: list[SearchResult],
     requirements: dict[str, Any] | None = None,
     conversation_history: list[dict[str, str]] | None = None,
+    channel: str | None = None,
 ) -> list[dict[str, str]]:
     """
     Build the Groq chat-completion messages array.
@@ -513,7 +565,8 @@ def build_messages(
     evidence_block = _format_evidence_block(candidates)
     requirements_block = _format_requirements_block(requirements)
 
-    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+    template = SYSTEM_PROMPT_TEXT_ONLY if channel == "whatsapp" else SYSTEM_PROMPT_TEMPLATE
+    system_prompt = template.format(
         requirements_block=requirements_block,
         evidence_block=evidence_block,
     )
@@ -1219,6 +1272,7 @@ def generate_response(
     conversation_history: list[dict[str, str]] | None = None,
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    channel: str | None = None,
 ) -> GenerationResult:
     """
     Generate a response grounded only in the supplied retrieved results.
@@ -1270,6 +1324,7 @@ def generate_response(
         candidates=candidates,
         requirements=requirements,
         conversation_history=conversation_history,
+        channel=channel,
     )
 
     model_name = _get_model_name()

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .field_mapper import FieldMapper
+from app.helpers.locations import canonical_district
 
 logger = logging.getLogger(__name__)
 
@@ -345,7 +346,7 @@ class PropertyNormalizer:
             "bathrooms": property_data.bathrooms,
             "location": property_data.location,
             "city": property_data.city,
-            "district": property_data.district,
+            "district": canonical_district(property_data.district),
             "neighborhood": property_data.neighborhood,
             "compound": property_data.compound,
             "developer": property_data.developer,

@@ -14,13 +14,18 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
+from app.helpers.locations import district_label
 from app.helpers.phone import normalize_phone
 
 from app.agents.understanding import (
     classify_intent,
     detect_language,
     extract_qualification,
+    blank_known_ids,
+    compare_targets,
     extract_requirements,
+    match_pasted_listings,
+    requirements_to_clear,
     resolve_property_reference,
     wants_new_search,
 )
@@ -57,6 +62,8 @@ class ConversationState(TypedDict, total=False):
     intent: str
     next_agent: str
     active_agent: str
+    # Property ids of the listings to compare this turn (empty on every other turn).
+    compare_ids: list[str]
 
     # --------------------------------------------------------
     # Customer
@@ -185,28 +192,58 @@ def router(state: ConversationState) -> dict:
 
     # "Start over" wipes the carried search so an old filter can never trap the customer.
     fresh_search = wants_new_search(query)
+    scheduling = {} if fresh_search else (state.get("scheduling") or {})
+    candidates = [] if fresh_search else (state.get("candidates") or [])
+    # Once a property is chosen for a viewing, "the first one" refers to time slots.
+    picking_slot = scheduling.get("stage") in SCHEDULING_STAGES - {"need_property"}
+
+    # A listing id typed back ("501188214") is a reference, never a price.
+    known_ids = {str(c.get("property_id")) for c in candidates if c.get("property_id")}
+    selected_id = (state.get("selected_property") or {}).get("property_id")
+    if selected_id:
+        known_ids.add(str(selected_id))
+    understood = blank_known_ids(query, known_ids)
+
+    # Listings the customer wants compared, or pasted back from our own answer.
+    compare_with = [] if picking_slot else compare_targets(query, candidates)
+    pasted = [] if picking_slot else match_pasted_listings(query, candidates)
+
     previous_requirements = {} if fresh_search else dict(state.get("requirements") or {})
-    for key in state.get("clear_requirements") or []:
+    # Chips ("Without Sheikh Zayed") and wording ("any price") lift conditions set earlier.
+    typed_clear = requirements_to_clear(query)
+    to_clear = list(state.get("clear_requirements") or []) + typed_clear
+    for key in to_clear:
         previous_requirements.pop(key, None)
         if key == "bedrooms":
             previous_requirements.pop("min_bedrooms", None)
         if key == "max_price":
             previous_requirements.pop("min_price", None)
-    new_requirements = extract_requirements(query)
+    new_requirements = extract_requirements(understood)
     # A chip like "Without Sheikh Zayed" names the value being removed.
-    for key in state.get("clear_requirements") or []:
+    for key in to_clear:
         new_requirements.pop(key, None)
-    scheduling = {} if fresh_search else (state.get("scheduling") or {})
     base = classify_intent(query)
     if scheduling.get("stage") in SCHEDULING_STAGES and base != "property_search":
         # Mid-booking replies (times, phone numbers, "yes") must not be read
         # as new search filters; only an explicit new search leaves the flow.
         new_requirements = {}
+    if compare_with or pasted:
+        # Prices and places in a pasted line or a comparison describe listings we already showed.
+        new_requirements = {}
     requirements = merge_requirements(previous_requirements, new_requirements)
 
-    signals = extract_qualification(query)
+    signals = extract_qualification(understood)
     contact = {key: signals.pop(key) for key in ("name", "phone", "email") if key in signals}
-    qualification = {**(state.get("qualification") or {}), **signals}
+    qualification = dict(state.get("qualification") or {})
+    if fresh_search:
+        # The profile keeps who the customer is; what they were searching for goes with the search.
+        for key in ("budget", "preferred_location", "property_type"):
+            qualification.pop(key, None)
+    if "max_price" in typed_clear:
+        qualification.pop("budget", None)
+    if "district" in typed_clear:
+        qualification.pop("preferred_location", None)
+    qualification = {**qualification, **signals}
     # Mirror search requirements into the lead profile used by sales/CRM.
     if requirements.get("district"):
         qualification["preferred_location"] = requirements["district"]
@@ -221,17 +258,19 @@ def router(state: ConversationState) -> dict:
 
     customer = merge_contact(state.get("customer") or {}, contact, state)
 
-    candidates = [] if fresh_search else (state.get("candidates") or [])
-    # Once a property is chosen for a viewing, "the first one" refers to time slots.
-    picking_slot = scheduling.get("stage") in SCHEDULING_STAGES - {"need_property"}
-    referenced = None if picking_slot else resolve_property_reference(query, candidates)
+    referenced = None
+    if not picking_slot and not compare_with:
+        referenced = resolve_property_reference(query, candidates) or (pasted[0] if pasted else None)
     selected = referenced or (None if fresh_search else state.get("selected_property"))
 
     if state.get("clear_requirements"):
         intent = "property_search"
     elif fresh_search and not new_requirements:
-        # "Start over" with no new details: collect the requirements again.
-        intent = "lead_qualification"
+        # "Start over" with no new details: a short fixed prompt, not a questionnaire.
+        intent = "search_reset"
+    elif compare_with or (pasted and base != "human_handoff"):
+        # Comparing, or a listing line pasted back: answer about those listings, not a new search.
+        intent = "property_information"
     elif base == "human_handoff":
         intent = "human_handoff"
     elif base in {"cancel_visit", "booking_status"} and not new_requirements:
@@ -241,6 +280,9 @@ def router(state: ConversationState) -> dict:
     elif scheduling.get("stage") in SCHEDULING_STAGES and not new_requirements:
         # Mid-booking replies ("Saturday", "4pm", "yes") belong to scheduling.
         intent = "schedule_visit"
+    elif typed_clear and requirements:
+        # "...at any price": search again without the condition that was just lifted.
+        intent = "property_search"
     elif base in {"property_search", "conversational", "greeting"} and referenced and not new_requirements:
         intent = "property_information"
     elif base in {"conversational", "greeting", "lead_qualification"} and new_requirements:
@@ -265,6 +307,7 @@ def router(state: ConversationState) -> dict:
         "qualification": qualification,
         "customer": customer,
         "selected_property": selected,
+        "compare_ids": [str(p.get("property_id")) for p in compare_with],
     }
     if fresh_search:
         # Same fields ConversationService.reset_search() clears; the customer's profile stays.
@@ -274,6 +317,7 @@ def router(state: ConversationState) -> dict:
 
 
 INTENT_TO_AGENT = {
+    "search_reset": "conversational",
     "cancel_visit": "scheduling",
     "booking_status": "scheduling",
     "property_search": "property",
@@ -319,26 +363,35 @@ def property_label(item: dict | None) -> str:
     return f"{description} (ID {item.get('property_id')})" if description else f"ID {item.get('property_id')}"
 
 
+_TYPE_AR = {
+    "Apartment": "شقة", "Villa": "فيلا", "Townhouse": "تاون هاوس", "Twin House": "توين هاوس", "Duplex": "دوبلكس",
+    "Penthouse": "بنتهاوس", "Chalet": "شاليه", "Studio": "ستوديو", "Room": "غرفة", "Residential Land": "أرض سكنية",
+    "Office": "مكتب", "Shop": "محل", "Land": "أرض",
+}
+_PURPOSE_AR = {"residence": "للسكن", "investment": "للاستثمار", "rent": "للإيجار", "resale": "لإعادة البيع"}
+
+
 def describe_requirements(requirements: dict[str, Any], qualification: dict[str, Any], language: str) -> str:
     ar = language == "ar"
     parts: list[str] = []
     if requirements.get("property_type"):
-        parts.append(str(requirements["property_type"]))
+        parts.append(_TYPE_AR.get(str(requirements["property_type"]), str(requirements["property_type"])) if ar else str(requirements["property_type"]))
     if requirements.get("district"):
-        parts.append(("في " if ar else "in ") + str(requirements["district"]))
+        parts.append(("في " if ar else "in ") + str(district_label(requirements["district"], language)))
     if requirements.get("bedrooms"):
         parts.append(f"{requirements['bedrooms']} " + ("غرف" if ar else "bedrooms"))
     if requirements.get("min_bedrooms"):
         parts.append(f"{requirements['min_bedrooms']}+ " + ("غرف" if ar else "bedrooms"))
-    budget = requirements.get("max_price") or qualification.get("budget")
+    # Only the budget the search really applies: a leftover profile value would be shown but ignored.
+    budget = requirements.get("max_price")
     if budget:
-        parts.append(("ميزانية حتى " if ar else "budget up to ") + f"{budget:,.0f} EGP")
+        parts.append(("ميزانية حتى " if ar else "budget up to ") + (f"{budget:,.0f} جنيه" if ar else f"{budget:,.0f} EGP"))
     if qualification.get("down_payment"):
-        parts.append(("مقدم " if ar else "down payment ") + f"{qualification['down_payment']:,.0f} EGP")
+        parts.append(("مقدم " if ar else "down payment ") + (f"{qualification['down_payment']:,.0f} جنيه" if ar else f"{qualification['down_payment']:,.0f} EGP"))
     if qualification.get("monthly_installment"):
-        parts.append(("قسط شهري " if ar else "monthly ") + f"{qualification['monthly_installment']:,.0f} EGP")
+        parts.append(("قسط شهري " if ar else "monthly ") + (f"{qualification['monthly_installment']:,.0f} جنيه" if ar else f"{qualification['monthly_installment']:,.0f} EGP"))
     if qualification.get("purpose"):
-        parts.append(str(qualification["purpose"]))
+        parts.append(_PURPOSE_AR.get(str(qualification["purpose"]), str(qualification["purpose"])) if ar else str(qualification["purpose"]))
     if qualification.get("timeline"):
         parts.append(str(qualification["timeline"]))
     return "، ".join(parts) if ar else ", ".join(parts)

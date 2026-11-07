@@ -154,6 +154,7 @@ def answer_query(
     top_k: int = 5,
     retrieval_top_k: int = 20,
     conversation_history: list[dict[str, str]] | None = None,
+    channel: str | None = None,
 ) -> dict[str, Any]:
     candidates = search_index(
         query,
@@ -166,6 +167,7 @@ def answer_query(
         candidates=candidates,
         requirements=requirements or {},
         conversation_history=conversation_history,
+        channel=channel,
     )
     return {
         "answer": generated.answer_text,
@@ -192,6 +194,7 @@ def answer_about_properties(
     requirements: dict[str, Any] | None = None,
     *,
     conversation_history: list[dict[str, str]] | None = None,
+    channel: str | None = None,
 ) -> dict[str, Any]:
     """Answer a follow-up using already-retrieved properties as the only evidence.
 
@@ -204,6 +207,7 @@ def answer_about_properties(
         candidates=candidates,
         requirements=requirements or {},
         conversation_history=conversation_history,
+        channel=channel,
     )
     return {
         "answer": generated.answer_text,

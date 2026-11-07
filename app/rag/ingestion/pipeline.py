@@ -45,6 +45,7 @@ from app.rag.ingestion.metadata import (
     add_chunk_metadata,
     build_metadata,
 )
+from app.helpers.locations import canonical_district
 from app.rag.normalization.field_mapper import FieldMapper
 from app.rag.normalization.property_normalizer import PropertyNormalizer
 
@@ -405,6 +406,10 @@ def _normalize_structured_row(
         for key, value in result.mapped.items()
         if value is not None and value != ""
     }
+    # One spelling per place ("AinSukhna" / "Ain Sokhna" -> "Ain Sukhna"): the assistant filters
+    # on this field with an exact match (see app/helpers/locations.py).
+    if normalized.get("district"):
+        normalized["district"] = canonical_district(normalized["district"])
 
     logger.info(
         "Structured row normalized | mapped=%d | unmapped=%d",

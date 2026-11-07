@@ -8,11 +8,39 @@ retrying the event.
 
 import hashlib
 import hmac
+import logging
 from typing import Any
 
 import httpx
 
 from ..helpers.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+# WhatsApp rejects a text body over 4096 characters; stay well under it.
+MAX_MESSAGE_CHARS = 3800
+
+
+def split_message(text: str, limit: int = MAX_MESSAGE_CHARS) -> list[str]:
+    """Cut a long reply into several messages at paragraph, line or word boundaries.
+
+    A single message is never cut mid-sentence; text that fits is returned as one part.
+    """
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return [text] if text else []
+    parts: list[str] = []
+    rest = text
+    while len(rest) > limit:
+        window = rest[:limit]
+        cut = max(window.rfind("\n\n"), window.rfind("\n"), window.rfind(" "))
+        if cut < limit // 2:  # no sensible boundary: hard cut rather than loop forever
+            cut = limit
+        parts.append(rest[:cut].strip())
+        rest = rest[cut:].strip()
+    if rest:
+        parts.append(rest)
+    return [part for part in parts if part]
 
 
 def verify_webhook_challenge(
@@ -99,15 +127,19 @@ async def send_text_message(recipient: str, text: str) -> None:
         f"{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
     )
     headers = {"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}"}
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": recipient,
-        "type": "text",
-        "text": {"body": text[:4096]},
-    }
     async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
+        for part in split_message(text):
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": recipient,
+                "type": "text",
+                "text": {"body": part},
+            }
+            response = await client.post(url, headers=headers, json=payload)
+            if getattr(response, "is_error", False):
+                # raise_for_status() hides Meta's reason (e.g. 131030: number not in the allowed list).
+                logger.error("WhatsApp send failed: status=%s body=%s", response.status_code, response.text[:300])
+            response.raise_for_status()
 
 
 async def download_media(media_id: str) -> bytes:
