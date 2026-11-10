@@ -54,7 +54,7 @@ PROPERTY_TYPES: list[tuple[str, str]] = [
     ("Villa", r"villa|\bfill?a\b|فيلا|فيلل|فلل|فيلات"),
     ("Apartment", r"apartment|\bflat\b|\bsha[2q]+a\b|\bsho2a\b|شقه|شقق"),
     ("Chalet", r"chalet|شاليه"),
-    ("Office", r"\boffice|مكتب|اداري"),
+    ("Office", r"\boffice|مكتب|مكاتب|(?<![\u0621-\u064a])اداري(?![\u0621-\u064a])"),
     ("Shop", r"\bshop\b|\bretail|محل|تجاري"),
 ]
 
@@ -545,6 +545,22 @@ _COMPARE = re.compile(
 )
 
 
+_KEEP_CONTEXT = re.compile(r"\b(?:same|also|too|still|keep)\b|نفس|برضه|بردو|كمان")
+
+
+def changes_topic(previous: dict[str, Any], new: dict[str, Any], text: str) -> bool:
+    """True when the message switches to a different kind of property in a different place.
+
+    "3 bedroom apartment in New Cairo under 8M" followed by "now show me villas in Sheikh Zayed" is a
+    new search: the old bedroom count and budget belong to the apartment hunt, not to the villa one.
+    Changing only the place ("same apartment in Sheikh Zayed") or saying "same budget" is a refinement.
+    """
+    for key in ("property_type", "district"):
+        if not new.get(key) or not previous.get(key) or new[key] == previous[key]:
+            return False
+    return not _KEEP_CONTEXT.search(normalize_text(text))
+
+
 def wants_comparison(text: str) -> bool:
     return bool(_COMPARE.search(normalize_text(text)))
 
@@ -582,6 +598,14 @@ def match_pasted_listings(text: str, candidates: list[dict[str, Any]]) -> list[d
     return found
 
 
+_NUMBER_WORDS = {"two": 2, "three": 3, "four": 4, "2": 2, "3": 3, "4": 4, "اتنين": 2, "اثنين": 2, "تلاته": 3, "ثلاثه": 3, "تلات": 3, "اربعه": 4, "اربع": 4}
+_FIRST_N = re.compile(
+    r"\b(?:first|top)\s+(two|three|four|[234])\b"
+    r"|(?:(?<![\u0621-\u064a])(?:ال)?اول|(?<![\u0621-\u064a])(?:ال)?اولي)\s+(اتنين|اثنين|تلاته|ثلاثه|تلات|اربعه|اربع|[234])(?![\u0621-\u064a\d])"
+    r"|(?<![\u0621-\u064a])(اتنين|اثنين|تلاته|ثلاثه|اربعه)\s+(?:ال)?اول(?![\u0621-\u064a])"
+)
+
+
 def resolve_property_references(text: str, candidates: list[dict[str, Any]], limit: int = 4) -> list[dict[str, Any]]:
     """Every candidate the message points at: by id, by a pasted listing line, or by position."""
     if not candidates:
@@ -599,9 +623,16 @@ def resolve_property_references(text: str, candidates: list[dict[str, Any]], lim
             add(candidate)
     for candidate in match_pasted_listings(text, candidates):
         add(candidate)
-    for position, pattern in _ORDINALS.items():
-        if position <= len(candidates) and re.search(pattern, t):
-            add(candidates[position - 1])
+    first_n = _FIRST_N.search(t)
+    if first_n:
+        # "the first two" is exactly the first two, not just the first one
+        count = _NUMBER_WORDS.get(next(group for group in first_n.groups() if group), 0)
+        for candidate in candidates[:count]:
+            add(candidate)
+    else:
+        for position, pattern in _ORDINALS.items():
+            if position <= len(candidates) and re.search(pattern, t):
+                add(candidates[position - 1])
     if re.search(r"\b(last one|the last)\b|الاخير", t):
         add(candidates[-1])
     return picked[:limit]

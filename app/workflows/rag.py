@@ -13,6 +13,7 @@ from app.database.vector_db import (
     upsert_chunks,
 )
 from app.helpers.config import get_settings
+from app.observability.timing import stage
 from app.rag.embeddings import EmbeddingModel
 from app.rag.generation import generate_response
 from app.rag.retrieval.hybrid_search import SearchResult, hybrid_search
@@ -126,7 +127,8 @@ def search_index(
     if not query:
         raise ValueError("query cannot be blank")
     filt = build_metadata_filter(requirements or {})
-    client = create_client()
+    with stage("qdrant_connect"):
+        client = create_client()
     try:
         candidates = hybrid_search(
             query=query,
@@ -144,7 +146,8 @@ def search_index(
                 candidate.metadata = {**candidate.metadata, "is_demo": True}
     else:
         candidates = [candidate for candidate in candidates if not _candidate_is_demo(candidate)]
-    return rerank(query, candidates, top_k=top_k)
+    with stage("rerank"):
+        return rerank(query, candidates, top_k=top_k)
 
 
 def answer_query(

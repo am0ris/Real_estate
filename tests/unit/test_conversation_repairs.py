@@ -234,3 +234,28 @@ def test_a_unit_listed_twice_is_shown_once_and_conditions_in_force_are_visible(m
     assert "1) " in result["response"] and "2) " in result["response"] and "3) " not in result["response"]
     assert 'الشروط الحالية: شقة، في العاصمة الإدارية، ميزانية حتى 10,000,000 جنيه' in result["response"]
     assert 'ابدأ من جديد' in result["response"]
+
+
+def test_the_first_two_means_exactly_two():
+    assert router({"query": "Compare the first two", "candidates": SHOWN})["compare_ids"] == IDS[:2]
+    assert router({"query": "قارن اول اتنين", "candidates": SHOWN})["compare_ids"] == IDS[:2]
+    assert router({"query": "compare the first three", "candidates": SHOWN})["compare_ids"] == IDS[:3]
+    assert router({"query": "Compare them", "candidates": SHOWN})["compare_ids"] == IDS[:4]
+
+
+def test_a_new_kind_of_property_in_a_new_place_starts_a_new_search():
+    carried = {"property_type": "Apartment", "district": "New Cairo", "bedrooms": 3, "max_price": 8_000_000.0}
+    update = router({"query": "Now show me villas in Sheikh Zayed", "requirements": carried})
+    assert update["requirements"] == {"property_type": "Villa", "district": "Sheikh Zayed"}
+    update = router({"query": "طيب وريني فيلل في الشيخ زايد", "requirements": {"property_type": "Apartment", "district": "New Cairo", "bedrooms": 3}})
+    assert update["requirements"] == {"property_type": "Villa", "district": "Sheikh Zayed"}
+
+
+def test_a_refinement_keeps_what_was_already_asked():
+    carried = {"property_type": "Apartment", "district": "New Cairo", "bedrooms": 3, "max_price": 8_000_000.0}
+    # only the place changes: same kind of property, so bedrooms and budget stay
+    kept = router({"query": "apartment in Sheikh Zayed", "requirements": carried})["requirements"]
+    assert kept["district"] == "Sheikh Zayed" and kept["bedrooms"] == 3 and kept["max_price"] == 8_000_000.0
+    # "same budget" keeps the context even when both change
+    same = router({"query": "villas in Sheikh Zayed, same budget", "requirements": carried})["requirements"]
+    assert same["property_type"] == "Villa" and same["max_price"] == 8_000_000.0

@@ -22,6 +22,7 @@ from app.agents.understanding import (
     detect_language,
     extract_qualification,
     blank_known_ids,
+    changes_topic,
     compare_targets,
     extract_requirements,
     match_pasted_listings,
@@ -230,6 +231,8 @@ def router(state: ConversationState) -> dict:
     if compare_with or pasted:
         # Prices and places in a pasted line or a comparison describe listings we already showed.
         new_requirements = {}
+    if changes_topic(previous_requirements, new_requirements, query):
+        previous_requirements = {}  # a different kind of property somewhere else: start the search over
     requirements = merge_requirements(previous_requirements, new_requirements)
 
     signals = extract_qualification(understood)

@@ -14,6 +14,7 @@ and tests only) it falls back to LangGraph's in-process ``MemorySaver``.
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from threading import Lock
@@ -26,6 +27,8 @@ from app.agents.graph import build_graph
 from app.agents.state import describe_requirements, property_label
 from app.agents.tools.crm import crm_service
 from app.database.session import is_postgres
+from app.helpers.config import get_settings
+from app.observability.timing import format_timings, stage, start_turn
 
 
 logger = logging.getLogger(__name__)
@@ -50,9 +53,13 @@ class TurnResult:
     handoff: dict[str, Any] | None = None
     scheduling_stage: str | None = None
     error: str | None = None
+    # Seconds spent per stage of this turn (embed, qdrant, rerank, generate, lock_wait, ...).
+    timings: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return dict(self.__dict__)
+        data = dict(self.__dict__)
+        data.pop("timings", None)  # internal: not part of what is sent to clients
+        return data
 
 
 class ConversationService:
@@ -77,7 +84,9 @@ class ConversationService:
         """One turn at a time per conversation: in this process and across workers."""
         stack = ExitStack()
         stack.enter_context(self._lock_for(thread_id))
-        if self._durable:
+        # The database lock holds one pooled connection for the whole turn, model calls included,
+        # so it caps how many conversations can run at once. It is only needed with several workers.
+        if self._durable and get_settings().TURN_LOCK_BACKEND == "postgres":
             stack.enter_context(thread_lock(thread_id))
         return stack
 
@@ -114,28 +123,44 @@ class ConversationService:
         if language in {"ar", "en"}:
             turn_input["language"] = language
 
+        timings = start_turn()
+        started = time.perf_counter()
         # A voice tool call and a typed message for the same customer must not
-        # interleave state updates, even when they land on different workers.
+        # interleave state updates (in this process, and across workers when TURN_LOCK_BACKEND=postgres).
+        lock_requested = time.perf_counter()
         with self._exclusive(thread_id):
-            state = self._graph.invoke(turn_input, self._config(thread_id))
+            timings["lock_wait"] = time.perf_counter() - lock_requested
+            with stage("graph"):
+                state = self._graph.invoke(turn_input, self._config(thread_id))
             if self._durable:
-                prune_thread(thread_id)
+                with stage("prune"):
+                    prune_thread(thread_id)
 
         result = self._result(thread_id, state)
         # The conversation is already saved; CRM bookkeeping must never fail a turn.
         try:
-            crm_service.sync_conversation(customer_id, state)
+            with stage("crm_sync"):
+                crm_service.sync_conversation(customer_id, state)
         except Exception:
             logger.exception("Failed to sync CRM | thread=%s", thread_id)
         try:
-            crm_service.record_interaction(
-                customer_id=customer_id,
-                channel=f"{channel}:{modality}",
-                content=message,
-                response=result.response,
-            )
+            with stage("interaction"):
+                crm_service.record_interaction(
+                    customer_id=customer_id,
+                    channel=f"{channel}:{modality}",
+                    content=message,
+                    response=result.response,
+                )
         except Exception:
             logger.exception("Failed to record interaction | thread=%s", thread_id)
+
+        # "graph" contains the model/search stages; what is left of it is the conversation
+        # state read/write in the database and the agents' own work.
+        inner = ("embed", "qdrant_connect", "qdrant", "rerank", "generate", "chat_llm")
+        timings["graph_other"] = max(0.0, timings.pop("graph", 0.0) - sum(timings.get(name, 0.0) for name in inner))
+        timings["total"] = time.perf_counter() - started
+        result.timings = {name: round(seconds, 3) for name, seconds in timings.items()}
+        logger.info("Turn timings | channel=%s intent=%s %s", channel, result.intent, format_timings(timings))
         return result
 
     @staticmethod

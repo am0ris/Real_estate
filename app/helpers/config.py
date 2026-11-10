@@ -144,6 +144,14 @@ class Settings(BaseSettings):
 
     GROQ_API_KEY: str | None = None
     GROQ_MODEL: str = "openai/gpt-oss-120b"
+    # gpt-oss models think before answering, and those hidden tokens count against max_tokens and
+    # the provider quota. "low" answers sooner and cheaper. Unset = the provider default.
+    GROQ_REASONING_EFFORT: Literal["low", "medium", "high"] | None = None
+    # How one conversation turn is serialized. "process": a lock inside the API process (correct
+    # for the single worker start.sh runs). "postgres": also an advisory lock on a pooled database
+    # connection held for the WHOLE turn (needed only with several workers; caps concurrency at the
+    # lock pool size).
+    TURN_LOCK_BACKEND: Literal["process", "postgres"] = "process"
 
     OPENAI_API_KEY: str | None = None
     OPENAI_API_URL: str | None = None

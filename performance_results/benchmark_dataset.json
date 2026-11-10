@@ -1,0 +1,681 @@
+[
+  {
+    "id": "en-nc-apt3",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-nc-apt3-8m",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in New Cairo under 8 million EGP",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3,
+          "max_price": 8000000
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-nc-apt3-5m",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in New Cairo under 5 million EGP",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3,
+          "max_price": 5000000
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-nc-apt2",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "2 bedroom apartment in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-nc-townhouse",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "townhouse in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "townhouse"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-nc-offplan",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "off-plan apartment in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "off_plan": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-sz-villa",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "villa in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-sz-villa3",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom villa in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa",
+          "bedrooms": 3
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-sz-villa2",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "2 bedroom villa in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa",
+          "bedrooms": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-sz-apt2",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "2 bedroom apartment in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "apartment",
+          "bedrooms": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-newcap-apt3",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in the New Capital",
+        "spec": {
+          "city": "new_capital",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-oct-apt",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "apartment in 6th of October",
+        "spec": {
+          "city": "october",
+          "type": "apartment"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-sukhna-chalet",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "chalet in Ain Sukhna",
+        "spec": {
+          "city": "ain_sukhna",
+          "type": "chalet"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-maadi-apt",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "apartment in Maadi",
+        "spec": {
+          "city": "maadi",
+          "type": "apartment"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-nc-rent",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "apartment for rent in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "transaction": "rent"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-wa-nc-apt3",
+    "lang": "en",
+    "channel": "whatsapp",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "Hello, I need a 3 bedroom apartment in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-wa-sz-villa",
+    "lang": "en",
+    "channel": "whatsapp",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "Do you have villas in Sheikh Zayed?",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-sz-villa",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "عايز فيلا في الشيخ زايد",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-nc-apt3",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "عايز شقة 3 غرف في التجمع الخامس",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-nc-apt3-8m",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "عايز شقة 3 غرف في التجمع الخامس ميزانيتي لحد 8 مليون جنيه",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3,
+          "max_price": 8000000
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-sz-apt2",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "شقة غرفتين في الشيخ زايد",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "apartment",
+          "bedrooms": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-newcap-apt3",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "شقة 3 غرف في العاصمة الإدارية",
+        "spec": {
+          "city": "new_capital",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-oct-apt",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "شقة في السادس من أكتوبر",
+        "spec": {
+          "city": "october",
+          "type": "apartment"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-sz-villa2",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "فيلا غرفتين في الشيخ زايد",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa",
+          "bedrooms": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-maadi-apt",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "شقة في المعادي",
+        "spec": {
+          "city": "maadi",
+          "type": "apartment"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-nc-rent",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "شقة للإيجار في التجمع الخامس",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "transaction": "rent"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-wa-sz-villa",
+    "lang": "ar",
+    "channel": "whatsapp",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "مساء الخير، أبحث عن فيلا في الشيخ زايد",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-wa-nc-apt2",
+    "lang": "ar",
+    "channel": "whatsapp",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "شقة غرفتين في التجمع الخامس",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-greeting",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "greeting",
+        "text": "Hello, how can you help me find a property?"
+      }
+    ]
+  },
+  {
+    "id": "ar-greeting",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "greeting",
+        "text": "السلام عليكم، ممكن تساعدني ألاقي عقار؟"
+      }
+    ]
+  },
+  {
+    "id": "en-followup",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      },
+      {
+        "kind": "followup",
+        "text": "What is the price of the first one?"
+      },
+      {
+        "kind": "followup",
+        "text": "Can I book a viewing for it?"
+      }
+    ]
+  },
+  {
+    "id": "ar-followup",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "عايز فيلا في الشيخ زايد",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      },
+      {
+        "kind": "followup",
+        "text": "كام سعر أول وحدة؟"
+      },
+      {
+        "kind": "followup",
+        "text": "عايز أحجز معاينة"
+      }
+    ]
+  },
+  {
+    "id": "en-stale-filters",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in New Cairo under 8 million EGP",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3,
+          "max_price": 8000000
+        }
+      },
+      {
+        "kind": "search",
+        "text": "Now show me villas in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-stale-filters",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "عايز شقة 3 غرف في التجمع الخامس",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      },
+      {
+        "kind": "search",
+        "text": "طيب وريني فيلل في الشيخ زايد",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ar-reset",
+    "lang": "ar",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "عايز شقة 3 غرف في التجمع الخامس",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      },
+      {
+        "kind": "reset",
+        "text": "ابدأ من جديد"
+      },
+      {
+        "kind": "search",
+        "text": "فيلا في الشيخ زايد",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-reset",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in New Cairo",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      },
+      {
+        "kind": "reset",
+        "text": "start over"
+      },
+      {
+        "kind": "search",
+        "text": "villa in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      }
+    ]
+  },
+  {
+    "id": "en-compare",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "apartment in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "apartment"
+        }
+      },
+      {
+        "kind": "compare",
+        "text": "Compare the first two"
+      }
+    ]
+  },
+  {
+    "id": "en-book-by-id",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "villa in Sheikh Zayed",
+        "spec": {
+          "city": "sheikh_zayed",
+          "type": "villa"
+        }
+      },
+      {
+        "kind": "book",
+        "text": "I want to book a viewing for {first_id}"
+      }
+    ]
+  },
+  {
+    "id": "en-any-price",
+    "lang": "en",
+    "channel": "website",
+    "turns": [
+      {
+        "kind": "search",
+        "text": "3 bedroom apartment in New Cairo under 8 million EGP",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3,
+          "max_price": 8000000
+        }
+      },
+      {
+        "kind": "search",
+        "text": "any price is fine",
+        "spec": {
+          "city": "new_cairo",
+          "type": "apartment",
+          "bedrooms": 3
+        }
+      }
+    ]
+  }
+]

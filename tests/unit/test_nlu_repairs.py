@@ -47,3 +47,11 @@ def test_noon_hours_are_afternoon():
     assert extract_time("12 الضهر") == (12, 0)
     assert extract_time("الخميس القادم الساعة 5") == (17, 0)
     assert extract_time("10am") == (10, 0)
+
+
+def test_administrative_capital_is_a_place_not_an_office():
+    # "الإدارية" (administrative) contains "اداري": it used to match the Office type and cancel the Apartment match.
+    assert extract_requirements("شقة 3 غرف في العاصمة الإدارية") == {
+        "property_type": "Apartment", "district": "New Capital City", "bedrooms": 3,
+    }
+    assert extract_requirements("مكتب اداري في التجمع")["property_type"] == "Office"

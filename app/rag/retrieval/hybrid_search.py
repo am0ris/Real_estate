@@ -21,6 +21,8 @@ from typing import Any
 
 from rank_bm25 import BM25Okapi
 
+from app.observability.timing import stage
+
 from ..embeddings import EmbeddingModel
 from .metadata_filter import MetadataFilter, matches
 
@@ -218,16 +220,20 @@ def _qdrant_search(
 
     qdrant_filter = _to_qdrant_filter(requirements_filter)
 
+    with stage("embed"):
+        query_vector = embed_query(query)
+
     search_kwargs: dict[str, Any] = {
         "collection_name": collection_name,
         "limit": top_k,
-        "query_vector": embed_query(query),
+        "query_vector": query_vector,
     }
 
     if qdrant_filter is not None:
         search_kwargs["query_filter"] = qdrant_filter
 
-    points = qdrant_client.search(**search_kwargs)
+    with stage("qdrant"):
+        points = qdrant_client.search(**search_kwargs)
 
     results: list[SearchResult] = []
 

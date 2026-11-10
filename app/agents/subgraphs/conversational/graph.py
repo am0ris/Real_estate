@@ -4,6 +4,7 @@ from functools import lru_cache
 from langgraph.graph import StateGraph, START, END
 
 from app.agents.messages import say
+from app.observability.timing import stage
 from app.agents.state import conversation_history, describe_requirements
 from app.agents.subgraphs.conversational.state import ConversationalState
 
@@ -40,7 +41,8 @@ def _llm_response(state: ConversationalState, query: str, summary: str) -> str:
         *({"role": m["role"], "content": m["content"][:2_000]} for m in conversation_history(state, limit=12)),
         {"role": "user", "content": query},
     ]
-    return _get_llm_client().generate_messages(messages, temperature=0.3, max_tokens=180).strip()
+    with stage("chat_llm"):
+        return _get_llm_client().generate_messages(messages, temperature=0.3, max_tokens=180).strip()
 
 
 def generate_response(

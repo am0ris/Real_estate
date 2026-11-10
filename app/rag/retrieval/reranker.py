@@ -36,6 +36,7 @@ from dataclasses import replace
 from typing import Any
 
 from app.helpers.config import get_settings
+from app.llm.params import reasoning_params
 
 from .hybrid_search import SearchResult
 
@@ -158,9 +159,10 @@ def _groq_scores(query: str, candidates: list[SearchResult]) -> list[float]:
         for index, candidate in enumerate(shortlist, start=1)
     )
     config = get_settings()
+    rerank_model = config.RERANKER_GROQ_MODEL or config.GROQ_MODEL
     try:
         completion = generation._get_client().chat.completions.create(
-            model=config.RERANKER_GROQ_MODEL or config.GROQ_MODEL,
+            model=rerank_model,
             messages=[
                 {"role": "system", "content": _RERANK_SYSTEM},
                 {"role": "user", "content": f"Customer request:\n{query[:600]}\n\nPassages:\n{passages}"},
@@ -168,7 +170,12 @@ def _groq_scores(query: str, candidates: list[SearchResult]) -> list[float]:
             temperature=0,
             max_tokens=600,
             response_format={"type": "json_object"},
+            **reasoning_params(rerank_model),
         )
+        if getattr(completion.choices[0], "finish_reason", None) == "length":
+            # Hidden reasoning tokens count against max_tokens: the JSON can be cut, and the
+            # search then silently keeps the unranked order.
+            logger.warning("Rerank stopped at max_tokens=600; the ranking may be cut")
         order = _parse_ranking(completion.choices[0].message.content or "", len(shortlist))
     except Exception as error:
         logger.warning("Groq reranking unavailable (%s); keeping the hybrid order", type(error).__name__)

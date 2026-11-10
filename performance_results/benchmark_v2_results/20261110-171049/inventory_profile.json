@@ -1,0 +1,217 @@
+{
+  "ground_truth_source": "csv:scripts/test_properties_small.csv",
+  "collection": "properties",
+  "chunks_scanned": 100,
+  "non_property_chunks": 0,
+  "unique_properties": 100,
+  "real_listings": 0,
+  "demo_listings": 100,
+  "ground_truth_includes_demo": true,
+  "app_show_demo_listings": true,
+  "by_city": [
+    [
+      "new cairo",
+      34
+    ],
+    [
+      "new capital city",
+      15
+    ],
+    [
+      "sheikh zayed",
+      14
+    ],
+    [
+      "6th of october",
+      13
+    ],
+    [
+      "mostakbal city",
+      4
+    ],
+    [
+      "ain sukhna",
+      4
+    ],
+    [
+      "new heliopolis",
+      3
+    ],
+    [
+      "north coast",
+      3
+    ],
+    [
+      "hadayek october",
+      3
+    ],
+    [
+      "shorouk city",
+      2
+    ],
+    [
+      "madinaty",
+      2
+    ],
+    [
+      "sahl hasheesh",
+      1
+    ],
+    [
+      "obour city",
+      1
+    ],
+    [
+      "sheraton",
+      1
+    ]
+  ],
+  "by_district": [
+    [
+      "?",
+      19
+    ],
+    [
+      "5th settlement",
+      11
+    ],
+    [
+      "al maqsad",
+      6
+    ],
+    [
+      "mountain view icity compound",
+      5
+    ],
+    [
+      "badya palm hills compound",
+      4
+    ],
+    [
+      "sodic east",
+      3
+    ],
+    [
+      "palm hills new cairo compound",
+      3
+    ],
+    [
+      "o west compound",
+      3
+    ],
+    [
+      "taj city compound",
+      3
+    ],
+    [
+      "hyde park new cairo compound",
+      3
+    ],
+    [
+      "the address east compound",
+      3
+    ],
+    [
+      "village west compound",
+      3
+    ],
+    [
+      "rehab city compound",
+      2
+    ],
+    [
+      "hills of one compound",
+      2
+    ],
+    [
+      "sarai",
+      2
+    ]
+  ],
+  "by_type": [
+    [
+      "apartment",
+      70
+    ],
+    [
+      "villa",
+      11
+    ],
+    [
+      "townhouse",
+      7
+    ],
+    [
+      "chalet",
+      5
+    ],
+    [
+      "duplex",
+      3
+    ],
+    [
+      "twin house",
+      2
+    ],
+    [
+      "room",
+      1
+    ],
+    [
+      "penthouse",
+      1
+    ]
+  ],
+  "by_bedrooms": [
+    [
+      "3",
+      54
+    ],
+    [
+      "2",
+      26
+    ],
+    [
+      "4",
+      13
+    ],
+    [
+      "1",
+      4
+    ],
+    [
+      "None",
+      2
+    ],
+    [
+      "5",
+      1
+    ]
+  ],
+  "by_transaction": [
+    [
+      "sale",
+      100
+    ]
+  ],
+  "by_source": [
+    [
+      "bayut.eg",
+      100
+    ]
+  ],
+  "price_min": 1000000.0,
+  "price_median": 8495000.0,
+  "price_max": 62173000.0,
+  "demo_source_files": [
+    ""
+  ],
+  "coverage": {
+    "csv_properties": 100,
+    "qdrant_properties": 100,
+    "in_csv_not_in_qdrant": 0,
+    "in_qdrant_not_in_csv": 0,
+    "missing_examples": [],
+    "extra_examples": []
+  }
+}

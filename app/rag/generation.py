@@ -40,6 +40,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..helpers.config import get_settings
+from ..llm.params import reasoning_params
+from ..observability.timing import stage
 from .retrieval.hybrid_search import SearchResult
 
 
@@ -1329,17 +1331,22 @@ def generate_response(
 
     model_name = _get_model_name()
 
-    completion = _get_client().chat.completions.create(
-        model=model_name,
-        messages=messages,
-        temperature=float(temperature),
-        max_tokens=max_tokens,
-    )
+    with stage("generate"):
+        completion = _get_client().chat.completions.create(
+            model=model_name,
+            messages=messages,
+            temperature=float(temperature),
+            max_tokens=max_tokens,
+            **reasoning_params(model_name),
+        )
 
     if not completion.choices:
         raise RuntimeError(
             "Generation provider returned no completion choices."
         )
+    if getattr(completion.choices[0], "finish_reason", None) == "length":
+        # For a reasoning model the hidden thinking counts here too: the visible answer can be cut.
+        logger.warning("Generation stopped at max_tokens=%s; the answer may be cut or empty", max_tokens)
 
     raw_text = (
         completion.choices[0].message.content

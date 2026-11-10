@@ -3,6 +3,7 @@ from app.llm.prompts import SYSTEM_PROMPT
 from groq import Groq
 from pydantic import BaseModel
 from app.helpers.config import get_settings
+from app.llm.params import reasoning_params
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -54,6 +55,7 @@ class LLMClient:
         request = {
             "model": self.model,
             "messages": messages,
+            **reasoning_params(self.model),
         }
         if temperature is not None:
             request["temperature"] = temperature
