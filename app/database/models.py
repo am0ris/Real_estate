@@ -18,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
     text,
@@ -425,6 +426,25 @@ class Lead(Base):
     property_ref: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
+    )
+
+    # Sales-team fields, maintained through the CRM workbook import
+    # (app.crm.excel). The AI assistant never writes them.
+    assigned_agent: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+        index=True,
+    )
+
+    last_contacted_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(),
+        nullable=True,
+    )
+
+    next_followup_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(),
+        nullable=True,
+        index=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -888,4 +908,169 @@ class AdminAudit(Base):
         server_default=func.now(),
         nullable=False,
         index=True,
+    )
+
+
+# ============================================================
+# CRM workbook: sales follow-up tasks and duplicate-review decisions
+# ============================================================
+
+
+class CrmTask(Base):
+    """A sales follow-up (call, send details, confirm a viewing...).
+
+    ``dedupe_key`` makes system-generated tasks idempotent: the task sync can
+    run any number of times, from any worker, and creates each task once.
+    """
+
+    __tablename__ = "crm_tasks"
+    __table_args__ = (
+        Index("ix_crm_tasks_status_due", "status", "due_at"),
+        CheckConstraint("status IN ('open', 'in_progress', 'done', 'cancelled')", name="ck_crm_tasks_status"),
+        CheckConstraint("priority IN ('low', 'normal', 'high', 'urgent')", name="ck_crm_tasks_priority"),
+        CheckConstraint("source IN ('system', 'staff')", name="ck_crm_tasks_source"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    public_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        default=uuid4,
+        unique=True,
+        nullable=False,
+    )
+
+    lead_id: Mapped[int] = mapped_column(
+        ForeignKey("leads.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    task_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    description: Mapped[str] = mapped_column(
+        String(500),
+        default="",
+        server_default=text("''"),
+        nullable=False,
+    )
+
+    priority: Mapped[str] = mapped_column(
+        String(10),
+        default="normal",
+        server_default=text("'normal'"),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="open",
+        server_default=text("'open'"),
+        nullable=False,
+    )
+
+    assigned_agent: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+    )
+
+    due_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(),
+        nullable=True,
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(),
+        nullable=True,
+    )
+
+    # "system" tasks are derived from handoffs/bookings/scores; "staff" tasks
+    # were typed into the workbook.
+    source: Mapped[str] = mapped_column(
+        String(20),
+        default="system",
+        server_default=text("'system'"),
+        nullable=False,
+    )
+
+    dedupe_key: Mapped[str | None] = mapped_column(
+        String(120),
+        unique=True,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class CrmDuplicateReview(Base):
+    """A staff decision about whether two customer records are one person.
+
+    Only the decision is stored; candidate pairs are computed on demand. A
+    decision never merges or alters the customer rows - it only controls how
+    the workbook groups them for the sales team.
+    """
+
+    __tablename__ = "crm_duplicate_reviews"
+    __table_args__ = (
+        UniqueConstraint("customer_a_id", "customer_b_id", name="uq_crm_duplicate_pair"),
+        CheckConstraint("customer_a_id < customer_b_id", name="ck_crm_duplicate_order"),
+        CheckConstraint("decision IN ('confirmed', 'rejected')", name="ck_crm_duplicate_decision"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    customer_a_id: Mapped[int] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    customer_b_id: Mapped[int] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    decision: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    # Why the pair was flagged when it was reviewed, e.g. "same_phone".
+    evidence: Mapped[str | None] = mapped_column(
+        String(60),
+        nullable=True,
+    )
+
+    reviewed_by: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+    )
+
+    reviewed_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(),
+        server_default=func.now(),
+        nullable=False,
     )

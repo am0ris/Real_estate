@@ -34,6 +34,9 @@ _LEAD_COLUMNS = {
 _STATUS_RANK = {
     "new": 0, "qualifying": 1, "qualified": 2, "contact_requested": 3, "hot": 4,
     "viewing_requested": 5, "viewing_booked": 6, "handoff_requested": 7, "contacted": 8,
+    # Set by sales staff (CRM workbook); ranked above everything automatic so a
+    # later chat turn, booking or handoff can never pull a lead back from it.
+    "negotiation": 9,
 }
 
 
@@ -160,6 +163,8 @@ class CRMService:
             metadata = dict(lead.metadata_json or {})
             for key, value in data.items():
                 if key == "status":
+                    if lead.status in repo.OPEN_LEAD_EXCLUDED:
+                        continue  # won/lost/closed are final for automatic updates
                     current = _STATUS_RANK.get(lead.status)
                     incoming = _STATUS_RANK.get(str(value))
                     if current is None or incoming is None or incoming >= current:

@@ -38,5 +38,11 @@ rank-bm25==0.2.2
 groq==0.31.0
 google-genai>=2.20,<3.0
 
+# --- CRM workbook (Excel export / import for the sales team) ---------------
+# Loaded only when /admin/crm/* is called, so the API still starts without them.
+# defusedxml makes openpyxl refuse XML bombs in uploaded workbooks.
+openpyxl==3.1.5
+defusedxml==0.7.1
+
 # --- Observability ---------------------------------------------------------
 prometheus-client==0.21.1

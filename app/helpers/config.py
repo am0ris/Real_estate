@@ -56,6 +56,25 @@ class Settings(BaseSettings):
     # document ingestion, booking/handoff management. Unset = disabled.
     ADMIN_API_KEY: str | None = None
 
+    # CRM workbook (app/crm/excel). CRM_API_KEY, when set, is what the sales team
+    # sends as X-Admin-Key on /admin/crm/* instead of ADMIN_API_KEY, so they never
+    # hold the key that manages listings and documents.
+    CRM_API_KEY: str | None = None
+    # Signs the workbook's hidden baseline so a tampered or foreign file is
+    # refused on import. Unset = derived from ADMIN_API_KEY.
+    CRM_SIGNING_KEY: str | None = None
+    # Comma-separated sales agent names offered in the workbook dropdown.
+    CRM_AGENTS: str = ""
+    # The workbook is built in memory. Measured: 5,000 leads + 10,000 interactions
+    # add ~90 MB and take ~3 s; 20,000 + 50,000 reach ~530 MB, which a 512 MB host
+    # cannot hold. Raise these only together with the instance's memory.
+    CRM_EXPORT_MAX_LEADS: int = 5_000
+    CRM_EXPORT_MAX_INTERACTIONS: int = 10_000
+    CRM_IMPORT_MAX_MB: int = 10
+    CRM_IMPORT_MAX_ROWS: int = 10_000
+    # A lead with no customer message for this many days gets a re-engage task.
+    CRM_INACTIVE_DAYS: int = 7
+
     # -----------------------------------------------------------------------
     # Rate limiting (per process; see app/api/ratelimit.py)
     # -----------------------------------------------------------------------
@@ -252,7 +271,8 @@ class Settings(BaseSettings):
         return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator(
-        "DATABASE_URL", "SESSION_SECRET", "ADMIN_API_KEY", "QDRANT_URL", "QDRANT_API_KEY",
+        "DATABASE_URL", "SESSION_SECRET", "ADMIN_API_KEY", "CRM_API_KEY", "CRM_SIGNING_KEY",
+        "QDRANT_URL", "QDRANT_API_KEY",
         "GROQ_API_KEY", "GEMINI_API_KEY", "WHATSAPP_VERIFY_TOKEN", "WHATSAPP_APP_SECRET",
         "WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_GATEWAY_SECRET",
         "STAFF_WEBHOOK_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "STAFF_WHATSAPP_NUMBER",
@@ -301,6 +321,16 @@ class Settings(BaseSettings):
         return bool(self.WHATSAPP_ACCESS_TOKEN and self.WHATSAPP_PHONE_NUMBER_ID and self.WHATSAPP_APP_SECRET)
 
     @property
+    def crm_agents(self) -> list[str]:
+        """Sales agent names from CRM_AGENTS, de-duplicated, order preserved."""
+        names: list[str] = []
+        for raw in self.CRM_AGENTS.split(","):
+            name = " ".join(raw.split())[:80]
+            if name and name.casefold() not in {existing.casefold() for existing in names}:
+                names.append(name)
+        return names
+
+    @property
     def staff_channels(self) -> list[str]:
         channels = []
         if self.STAFF_WEBHOOK_URL:
@@ -329,6 +359,9 @@ class Settings(BaseSettings):
             missing("SESSION_SECRET", "at least 32 characters; signs website sessions and voice tokens")
         if not self.ADMIN_API_KEY or len(self.ADMIN_API_KEY) < 24:
             missing("ADMIN_API_KEY", "at least 24 characters; staff confirm bookings and handoffs with it")
+
+        if self.CRM_API_KEY and len(self.CRM_API_KEY) < 24:
+            problems.append("CRM_API_KEY must be at least 24 characters when set (it unlocks the lead export)")
 
         origins = self.cors_origins
         if not origins or "*" in origins:

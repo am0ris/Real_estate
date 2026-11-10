@@ -29,6 +29,7 @@ from .api.ratelimit import limit_search
 from .api.routes import (
     admin_router,
     chat_router,
+    crm_admin_router,
     documents_router,
     leads_router,
     properties_router,
@@ -234,6 +235,7 @@ app.include_router(properties_router)
 app.include_router(documents_router)
 app.include_router(leads_router)
 app.include_router(admin_router)
+app.include_router(crm_admin_router)
 
 
 # ---------------------------------------------------------------------------
